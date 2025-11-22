@@ -1,0 +1,22 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+.git
+.gitignore
+.idea/
+
+# Log files
+data_collector.log
+data_collector.txt
+
+# Data exports
+get_data_output.csv
+Signals_Export.xlsx
+
+# Gemini CLI settings
+.gemini/
+
+# Gemini CLI settings
+Gemini.md

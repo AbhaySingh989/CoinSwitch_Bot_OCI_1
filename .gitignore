@@ -1,0 +1,48 @@
+# Python
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+virtualenv/
+venv/
+env/
+
+#Temp Folders
+Charts/
+
+# IDEs
+.idea/
+.vscode/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Database file
+Crypto_Data.db
+.env
+
+ # Log files
+data_collector.log
+data_collector.txt
+
+# Data exports
+get_data_output.csv
+Signals_Export.xlsx
+
+# Gemini CLI settings
+.gemini/
+
+# Gemini CLI settings
+Gemini.md
+
+data_collector*
+G-trend.txt
+
+# SQLite temporary files
+*.db-shm
+*.db-wal
+
+# OCI
+OCI/

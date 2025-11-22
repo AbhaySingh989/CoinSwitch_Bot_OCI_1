@@ -1,0 +1,9 @@
+python-dotenv
+python-socketio[client]
+pandas
+requests
+#ed25519
+cryptography #new library removing ed25519
+aiohttp==3.12.15 #Required for AWS server
+scikit-optimize
+scikit-learn

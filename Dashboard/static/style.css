@@ -1,0 +1,132 @@
+/* --- Global Styles --- */
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: #f8f9fa;
+    color: #333;
+}
+
+.card {
+    border: none;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    transition: all 0.3s ease;
+}
+
+.card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 6px 16px rgba(0,0,0,0.12);
+}
+
+.card-header {
+    background-color: #fff;
+    border-bottom: 1px solid #eee;
+    font-weight: 600;
+}
+
+/* --- Sidebar --- */
+#sidebar {
+    min-width: 250px;
+    max-width: 250px;
+    background: #343a40;
+    color: #fff;
+    transition: all 0.3s;
+}
+
+#sidebar.active {
+    margin-left: -250px;
+}
+
+#sidebar .sidebar-header {
+    padding: 20px;
+    background: #212529;
+}
+
+#sidebar ul.components {
+    padding: 20px 0;
+}
+
+#sidebar ul p {
+    color: #fff;
+    padding: 10px;
+}
+
+#sidebar ul li a {
+    padding: 15px 20px;
+    font-size: 1.1em;
+    display: block;
+    color: #adb5bd;
+    border-left: 3px solid transparent;
+}
+
+#sidebar ul li a:hover {
+    color: #fff;
+    background: #495057;
+    border-left: 3px solid #0d6efd;
+}
+
+#sidebar ul li.active > a, a[aria-expanded="true"] {
+    color: #fff;
+    background: #0d6efd;
+}
+
+/* --- Content --- */
+#content {
+    width: 100%;
+    padding: 20px;
+    min-height: 100vh;
+    transition: all 0.3s;
+}
+
+/* --- Scorecard --- */
+.scorecard-card {
+    background-color: #fff;
+    padding: 20px;
+    border-radius: 12px;
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+.scorecard-card .card-title {
+    font-size: 1rem;
+    font-weight: 500;
+    color: #6c757d;
+}
+
+.scorecard-card .card-text {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #343a40;
+}
+
+.scorecard-card .icon {
+    font-size: 3rem;
+    color: #0d6efd;
+    margin-bottom: 15px;
+}
+
+/* --- Charts --- */
+.chart-container {
+    height: 350px;
+}
+
+/* --- Tables --- */
+.table-responsive {
+    max-height: 500px;
+}
+
+.table thead th {
+    background-color: #e9ecef;
+    font-weight: 600;
+}
+
+/* --- Collapsible Sections --- */
+.card-header .btn-link {
+    color: #333;
+    text-decoration: none;
+    font-size: 1.2rem;
+    font-weight: 600;
+}
+
+.card-header .btn-link:hover {
+    color: #0d6efd;
+}

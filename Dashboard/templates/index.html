@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Trading Bot Dashboard</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="d-flex">
+        <!-- Sidebar -->
+        <nav id="sidebar">
+            <div class="sidebar-header">
+                <h3><i class="fas fa-robot"></i> Trading Bot</h3>
+            </div>
+            <ul class="list-unstyled components">
+                <li class="active">
+                    <a href="/"><i class="fas fa-chart-pie"></i> Dashboard</a>
+                </li>
+            </ul>
+        </nav>
+
+        <!-- Page Content -->
+        <div id="content">
+            <nav class="navbar navbar-expand-lg navbar-light bg-light">
+                <div class="container-fluid">
+                    <button type="button" id="sidebarCollapse" class="btn btn-info">
+                        <i class="fas fa-align-left"></i>
+                    </button>
+                    <div class="d-flex ms-auto">
+                        <span class="navbar-text me-3" id="data-timestamp">
+                            Last updated: --
+                        </span>
+                        <button class="btn btn-primary" id="refresh-button"><i class="fas fa-sync-alt"></i> Refresh</button>
+                    </div>
+                </div>
+            </nav>
+
+            <div class="container-fluid mt-4">
+                <!-- Timeframe Filter -->
+                <div class="row mb-3">
+                    <div class="col-12 text-center">
+                        <div class="btn-group" role="group" aria-label="Timeframe Selector">
+                            <input type="radio" class="btn-check" name="timeframe" id="timeframe-daily" autocomplete="off" value="D" checked>
+                            <label class="btn btn-outline-primary" for="timeframe-daily">Daily</label>
+
+                            <input type="radio" class="btn-check" name="timeframe" id="timeframe-weekly" autocomplete="off" value="W">
+                            <label class="btn btn-outline-primary" for="timeframe-weekly">Weekly</label>
+
+                            <input type="radio" class="btn-check" name="timeframe" id="timeframe-monthly" autocomplete="off" value="M">
+                            <label class="btn btn-outline-primary" for="timeframe-monthly">Monthly</label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 1: Performance Scorecard -->
+                <div class="row">
+                    <div class="col-12">
+                        <h3><i class="fas fa-tachometer-alt"></i> Performance Scorecard</h3>
+                        <hr>
+                        <div class="row" id="scorecard-container">
+                            <!-- KPI Cards will be injected here by JavaScript -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 2: Insights -->
+                <div class="row mt-5">
+                    <div class="col-12">
+                        <h3><i class="fas fa-lightbulb"></i> Insights</h3>
+                        <hr>
+                        <div class="row">
+                            <div class="col-md-6 chart-container">
+                                <h4>Daily Win Rate</h4>
+                                <canvas id="daily-win-rate-chart"></canvas>
+                            </div>
+                            <div class="col-md-6 chart-container">
+                                <h4>Daily Completed Positions</h4>
+                                <canvas id="daily-completed-positions-chart"></canvas>
+                            </div>
+                        </div>
+                        <div class="row mt-4">
+                            <div class="col-md-6 chart-container">
+                                <h4>Daily P&L Breakdown</h4>
+                                <canvas id="daily-pnl-chart"></canvas>
+                            </div>
+                            <div class="col-md-6 chart-container">
+                                <h4>Cumulative P&L Curve</h4>
+                                <canvas id="cumulative-pnl-chart"></canvas>
+                            </div>
+                        </div>
+                        <div class="row mt-4">
+                            <div class="col-md-6 chart-container">
+                                <h4>Average P&L by Holding Period</h4>
+                                <canvas id="avg-pnl-by-holding-period-chart"></canvas>
+                            </div>
+                            <div class="col-md-6 chart-container">
+                                <h4>Holding Period Distribution</h4>
+                                <canvas id="holding-period-chart"></canvas>
+                            </div>
+                        </div>
+                        <div class="row mt-4">
+                            <div class="col-md-6 chart-container">
+                                <h4>Buy Strategy Performance</h4>
+                                <canvas id="buy-strategy-performance-chart"></canvas>
+                            </div>
+                            <div class="col-md-6 chart-container">
+                                <h4>Peak Concurrent Open Positions</h4>
+                                <canvas id="peak-concurrent-positions-chart"></canvas>
+                            </div>
+                        </div>
+                        <div class="row mt-4">
+                            <div class="col-md-6 chart-container">
+                                <h4>Buy Strategy P&L Over Time</h4>
+                                <canvas id="buy-strategy-trending-chart"></canvas>
+                            </div>
+                            <div class="col-md-6 chart-container">
+                                <h4>P&L by Exit Reason</h4>
+                                <canvas id="pnl-by-exit-reason-chart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 3: All Trades Table -->
+                <div class="row mt-5">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h4 class="mb-0">
+                                    <button class="btn btn-link" data-bs-toggle="collapse" data-bs-target="#all-trades-collapse">
+                                        <i class="fas fa-table"></i> All Trades
+                                    </button>
+                                </h4>
+                            </div>
+                            <div id="all-trades-collapse" class="collapse">
+                                <div class="card-body">
+                                    <div class="table-responsive">
+                                        <table class="table table-striped table-sm">
+                                            <thead>
+                                                <tr>
+                                                    <th data-sort="symbol">Symbol</th>
+                                                    <th data-sort="entry_datetime">Entry Date/Time</th>
+                                                    <th data-sort="exit_datetime">Exit Date/Time</th>
+                                                    <th data-sort="hold_time_mins">Hold Time (Mins)</th>
+                                                    <th data-sort="entry_price">Entry Price</th>
+                                                    <th data-sort="exit_price">Exit Price</th>
+                                                    <th data-sort="pnl">P&L (USD)</th>
+                                                    <th data-sort="high_water_mark_signal">HWM (Signal)</th>
+                                                    <th data-sort="highest_price_market">Highest Price During Hold (Market)</th>
+                                                    <th data-sort="peak_capture_perc">Peak Capture %</th>
+                                                    <th data-sort="highest_perc_change">Highest % Change</th>
+                                                    <th data-sort="lowest_perc_change">Lowest % Change</th>
+                                                    <th data-sort="exit_reason">Exit Reason</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="all-trades-body">
+                                                <!-- Data will be injected here -->
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 4: Strategy Optimization -->
+                <div class="row mt-5 mb-5">
+                    <div class="col-12">
+                        <h3><i class="fas fa-flask"></i> Strategy Optimization</h3>
+                        <hr>
+                        <div id="optimization-container">
+                            <div class="mb-3">
+                                <h5>Sell-Side Optimization Parameters</h5>
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <label for="sell-tpp" class="form-label">Take-Profit % (e.g., 2, 2.5, 3)</label>
+                                        <input type="text" class="form-control" id="sell-tpp" value="2, 2.5, 3, 3.5, 4, 5, 7, 10, 12, 15">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label for="sell-tslp" class="form-label">Trailing Stop-Loss % (e.g., 3, 3.5, 4)</label>
+                                        <input type="text" class="form-control" id="sell-tslp" value="3, 3.5, 4, 5, 6, 7, 8">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label for="sell-ptp" class="form-label">Profit-Trail % (e.g., 1, 1.5, 2)</label>
+                                        <input type="text" class="form-control" id="sell-ptp" value="1, 1.5, 2, 2.5, 3">
+                                    </div>
+                                </div>
+                                <button class="btn btn-info mt-3" id="run-sell-optimization-button">Run Sell-Side Optimization</button>
+                            </div>
+
+                            <div class="mb-3 mt-5">
+                                <h5>Full (Buy & Sell) Optimization Parameters</h5>
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <label for="full-momentum" class="form-label">Bullish Momentum % (e.g., 3.5, 4, 5)</label>
+                                        <input type="text" class="form-control" id="full-momentum" value="3.5, 4, 5">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label for="full-wick" class="form-label">Bullish Wick % (e.g., 0.75, 1.0, 1.5)</label>
+                                        <input type="text" class="form-control" id="full-wick" value="0.75, 1.0, 1.5">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label for="full-tpp" class="form-label">Take-Profit % (e.g., 3, 5, 8)</label>
+                                        <input type="text" class="form-control" id="full-tpp" value="3, 5, 8, 12">
+                                    </div>
+                                    <div class="col-md-4 mt-3">
+                                        <label for="full-tslp" class="form-label">Trailing Stop-Loss % (e.g., 3, 5, 8)</label>
+                                        <input type="text" class="form-control" id="full-tslp" value="3, 5, 8">
+                                    </div>
+                                    <div class="col-md-4 mt-3">
+                                        <label for="full-ptp" class="form-label">Profit-Trail % (e.g., 1.5, 2, 3)</label>
+                                        <input type="text" class="form-control" id="full-ptp" value="1.5, 2, 3">
+                                    </div>
+                                </div>
+                                <button class="btn btn-success mt-3" id="run-full-optimization-button">Run Full (Buy & Sell) Optimization</button>
+                            </div>
+                            <div id="optimization-results" class="mt-3">
+                                <!-- Optimization results and progress will be displayed here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+    <!-- Custom JS -->
+    <script src="{{ url_for('static', filename='main.js') }}"></script>
+</body>
+</html>
