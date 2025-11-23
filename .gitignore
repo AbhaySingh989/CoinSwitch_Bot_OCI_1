@@ -44,5 +44,3 @@ G-trend.txt
 *.db-shm
 *.db-wal
 
-# OCI
-OCI/

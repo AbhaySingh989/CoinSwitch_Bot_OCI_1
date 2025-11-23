@@ -1,0 +1,69 @@
+version: '3.8'
+
+services:
+  # Bot Instance 1
+  bot_1:
+    build: 
+      context: ../
+    image: coinswitch-bot
+    restart: unless-stopped
+    container_name: coinswitch_bot_1
+    env_file:
+      - ../.env
+    environment:
+      - DATABASE_PATH=data/Crypto_Data.db
+    volumes:
+      # Maps host folder ./bot_data/bot_1 to container folder /app/data
+      - ./bot_data/bot_1:/app/data
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Bot Instance 2
+  bot_2:
+    build: 
+      context: ../
+    image: coinswitch-bot
+    restart: unless-stopped
+    container_name: coinswitch_bot_2
+    env_file:
+      - ../.env
+    environment:
+      - DATABASE_PATH=data/Crypto_Data.db
+    volumes:
+      - ./bot_data/bot_2:/app/data
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Bot Instance 3
+  bot_3:
+    build: 
+      context: ../
+    image: coinswitch-bot
+    restart: unless-stopped
+    container_name: coinswitch_bot_3
+    env_file:
+      - ../.env
+    environment:
+      - DATABASE_PATH=data/Crypto_Data.db
+    volumes:
+      - ./bot_data/bot_3:/app/data
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # --- ADVANCED: Multiple Repositories ---
+  # If you want to run different code versions, clone them into subfolders
+  # (e.g., strategies/strategy_a) and change the 'build' context:
+  #
+  # bot_4_strategy_a:
+  #   build: 
+  #     context: ./strategies/strategy_a
+  #   ...
