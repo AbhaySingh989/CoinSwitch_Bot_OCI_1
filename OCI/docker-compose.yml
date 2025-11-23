@@ -1,15 +1,13 @@
-version: '3.8'
-
 services:
   # Bot Instance 1
   bot_1:
     build: 
-      context: ../
+      context: .
     image: coinswitch-bot
     restart: unless-stopped
     container_name: coinswitch_bot_1
     env_file:
-      - ../.env
+      - .env
     environment:
       - DATABASE_PATH=data/Crypto_Data.db
     volumes:
@@ -24,12 +22,12 @@ services:
   # Bot Instance 2
   bot_2:
     build: 
-      context: ../
+      context: .
     image: coinswitch-bot
     restart: unless-stopped
     container_name: coinswitch_bot_2
     env_file:
-      - ../.env
+      - .env
     environment:
       - DATABASE_PATH=data/Crypto_Data.db
     volumes:
@@ -43,12 +41,12 @@ services:
   # Bot Instance 3
   bot_3:
     build: 
-      context: ../
+      context: .
     image: coinswitch-bot
     restart: unless-stopped
     container_name: coinswitch_bot_3
     env_file:
-      - ../.env
+      - .env
     environment:
       - DATABASE_PATH=data/Crypto_Data.db
     volumes:
