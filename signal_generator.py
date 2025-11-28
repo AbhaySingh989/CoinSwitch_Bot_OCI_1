@@ -75,7 +75,7 @@ class SignalGenerator:
         # Intra-candle buy signal (US2.7)
         if open_price != 0:
             percentage_increase = ((current_price - open_price) / open_price) * 100
-            increase_threshold = 3
+            increase_threshold = 12
             if percentage_increase >= increase_threshold:
                 # First check the condition, THEN check the database to prevent loops.
                 reason = f'Intra-candle {increase_threshold}% increase'

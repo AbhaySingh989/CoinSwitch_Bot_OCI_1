@@ -29,16 +29,16 @@ LEVERAGE = 10  # The leverage to be applied (e.g., 10 for 10x).
 ORDER_AMOUNT = 10  # The desired amount of quote currency (e.g., USDT) to use for an order *before* leverage.
 BUY_SIGNAL_EXECUTION_THRESHOLD_SECONDS = 5  # The maximum time in seconds allowed from signal generation to a confirmed 'EXECUTED' status.
 SELL_ORDER_STATUS_MONITORING_TIME = 15 # This is the time in seconds post which the system would make a Get order status call for the sell order placed to confirm the order status  'EXECUTED' from the exchange.
-TRAILING_STOP_LOSS_PERCENTAGE = 5 # The percentage to trail below the high water mark. e.g., 2.5 for 2.5%
+TRAILING_STOP_LOSS_PERCENTAGE = 0.5 # The percentage to trail below the high water mark. e.g., 2.5 for 2.5%
 
 
 # -- Multi-Stage Take-Profit Configuration --
 # Defines the tiers for the take-profit strategy.
 # Each tuple represents: (activation_profit_percentage, profit_trail_percentage)
 TAKE_PROFIT_STAGES = [
-    (7, 5),
-    (10, 4),
-    (15, 2),
-    (18, 3),
-    (25, 5)
+    (0.5, 0.2),
+    (0.8, 0.3),
+    (1.2, 0.4),
+    (1.5, 0.5),
+    (2, 0.7)
 ]
