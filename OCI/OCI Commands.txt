@@ -17,3 +17,6 @@ ssh -i "C:\OCI\ssh-key-2025-11-22.key" ubuntu@140.245.222.72
 
 GitHub token - 
 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
+
+
+https://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@github.com/AbhaySingh989/CoinSwitch_Bot_OCI_1.git

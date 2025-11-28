@@ -1,0 +1,193 @@
+================================
+AWS TRADING BOT MANAGEMENT COMMANDS
+================================
+
+This document provides a quick reference for the most common shell commands
+used to manage, update, and monitor the trading bot running on the AWS EC2 instance.
+
+
+------------------------
+1. SERVER CONNECTION
+------------------------
+
+- Public IP Address: 52.66.241.232
+- Private Key Location: C:\Abhay\trading-bot-key.pem
+
+# Connect via SSH (from PowerShell)
+ssh -i "C:\Abhay\trading-bot-key.pem" ubuntu@52.66.241.232
+
+
+-----------------------------
+2. BOT DEPLOYMENT & UPDATES
+-----------------------------
+
+# Standard procedure to update the bot with the latest code from GitHub.
+
+# 1. Stop the currently running bot service
+sudo systemctl stop tradingbot.service
+
+# 2. Navigate to the project directory
+cd CoinSwitch_Bot
+
+# 3. Pull the latest changes from the main branch on GitHub
+git pull
+
+# 4. Activate the Python virtual environment
+source venv/bin/activate
+
+# 5. Install or update any new dependencies
+pip install -r requirements.txt
+
+# 6. Deactivate the virtual environment (optional, good practice)
+deactivate
+
+# 7. Restart the bot service to apply the new code
+sudo systemctl restart tradingbot.service
+
+# 8. Verify that the service has restarted successfully
+sudo systemctl status tradingbot.service
+
+
+------------------------
+3. SERVICE MANAGEMENT
+------------------------
+
+# The bot is managed using systemd as a service named 'tradingbot.service'.
+
+# Check Status: See if the service is running and view recent logs.
+sudo systemctl status tradingbot.service
+
+# Start Service: Start the service if it's not running.
+sudo systemctl start tradingbot.service
+
+# Stop Service: Stop the service.
+sudo systemctl stop tradingbot.service
+
+# Restart Service: A single command to stop and then start the service.
+sudo systemctl restart tradingbot.service
+
+# Enable on Boot: Make the service start automatically when the server boots.
+sudo systemctl enable tradingbot.service
+
+# Disable on Boot: Prevent the service from starting automatically on boot.
+sudo systemctl disable tradingbot.service
+
+
+----------------------
+4. LOG MONITORING
+----------------------
+
+# View Last 100 Log Lines: Quickly see the most recent logs.
+sudo journalctl -u tradingbot.service -n 100 --no-pager
+
+# Follow Logs in Real-Time: Stream logs live for active debugging (Press Ctrl+C to exit).
+sudo journalctl -u tradingbot.service -f
+
+
+-------------------
+5. FILE TRANSFER
+-------------------
+
+# Copy Database from Server to Local Machine (run in local PowerShell)
+# The '.' at the end copies the file to your current local directory.
+scp -i "C:\Abhay\trading-bot-key.pem" ubuntu@52.66.241.232:~/CoinSwitch_Bot/Crypto_Data.db .
+
+
+-------------------------
+6. SERVER HEALTH CHECKS
+-------------------------
+
+# Check Disk Usage: See how much disk space is used and available.
+df -h
+
+# Check Memory Usage: View total, used, and free memory.
+free -h
+
+# View Running Processes: See all running processes (Press 'q' to exit).
+top
+
+
+-------------------------
+7. DATABASE QUERY (LIVE)
+-------------------------
+
+# How to query the live SQLite database directly on the server.
+
+# 1. (One-Time Setup) Install the sqlite3 tool if it's not already.
+#    Check with: sqlite3 --version
+#    If not found, install with: sudo apt-get update && sudo apt-get install sqlite3
+
+# 2. Navigate to the project directory
+cd ~/CoinSwitch_Bot
+
+# 3. Open the database file
+sqlite3 Crypto_Data.db
+
+# --- Once inside the sqlite> shell, run these commands: ---
+
+# 4. Set formatting for readable output
+.mode column
+.headers on
+
+# 5. Run your query. Examples:
+#    Show all signals:
+SELECT * FROM Signals;
+
+#    Show the 10 most recent signals:
+SELECT * FROM Signals ORDER BY Signal_Timestamp DESC LIMIT 10;
+
+# 6. Exit the sqlite shell
+.quit
+
+------------------------------
+8. DATABASE CLEANUP (DANGER)
+------------------------------
+
+# Commands to perform destructive cleanup tasks on the database.
+# WARNING: These commands permanently delete large amounts of data.
+# ALWAYS stop the bot service before running them and make a backup first.
+
+# --- OPTION A: CLEAN UP RECORDS INSIDE THE DATABASE ---
+
+# 1. Stop the bot to prevent data corruption
+sudo systemctl stop tradingbot.service
+
+# 2. Navigate to the project directory and open the database
+cd ~/CoinSwitch_Bot
+sqlite3 Crypto_Data.db
+
+# --- Once inside the sqlite> shell, run these commands: ---
+
+# 3. Delete all records from the Signals table
+DELETE FROM Signals;
+
+# 4. Reset the autoincrement counter for the Signals table
+UPDATE sqlite_sequence SET seq = 0 WHERE name = 'Signals';
+
+# 5. Delete the oldest 1.5 million candlestick data rows
+DELETE FROM CandleStick_Data_WebSocket WHERE rowid IN (SELECT rowid FROM CandleStick_Data_WebSocket ORDER BY candle_start_time ASC LIMIT 1500000);
+
+# 6. Exit the sqlite shell
+.quit
+
+# 7. Restart the bot after cleanup
+sudo systemctl restart tradingbot.service
+
+
+# ---
+# OPTION B: DELETE THE ENTIRE DATABASE TO START FRESH
+# WARNING: THIS IS THE MOST DESTRUCTIVE OPTION. ALL DATA WILL BE LOST.
+# The bot will create a new, empty database on restart.
+# ---
+
+# 1. Stop the bot
+sudo systemctl stop tradingbot.service
+
+# 2. Navigate to the project directory
+cd ~/CoinSwitch_Bot
+
+# 3. Delete the database file
+rm Crypto_Data.db
+
+# 4. Restart the bot
+sudo systemctl restart tradingbot.service
