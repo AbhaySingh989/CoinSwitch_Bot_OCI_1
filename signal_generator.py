@@ -3,7 +3,7 @@ import logging
 import uuid
 import time
 from collections import defaultdict
-from config import STALENESS_THRESHOLD_SECONDS, TRAILING_STOP_LOSS_PERCENTAGE, TAKE_PROFIT_STAGES
+from config import STALENESS_THRESHOLD_SECONDS, TRAILING_STOP_LOSS_PERCENTAGE, TAKE_PROFIT_STAGES, STOP_LOSS_PERCENTAGE, TAKE_PROFIT_PERCENTAGE, INTRA_CANDLE_BUY_THRESHOLD
 from order_executor import execute_buy_signal, execute_sell_signal
 
 
@@ -75,7 +75,7 @@ class SignalGenerator:
         # Intra-candle buy signal (US2.7)
         if open_price != 0:
             percentage_increase = ((current_price - open_price) / open_price) * 100
-            increase_threshold = 12
+            increase_threshold = INTRA_CANDLE_BUY_THRESHOLD
             if percentage_increase >= increase_threshold:
                 # First check the condition, THEN check the database to prevent loops.
                 reason = f'Intra-candle {increase_threshold}% increase'
@@ -121,6 +121,22 @@ class SignalGenerator:
         if current_price > high_water_mark:
             self.db_handler.update_high_water_mark(signal_id, current_price)
             high_water_mark = current_price  # Use the new HWM for the current check
+
+        # --- Hard Stop Loss & Take Profit Checks (Golden Strategy) ---
+        stop_loss_price = entry_price * (1 - STOP_LOSS_PERCENTAGE / 100)
+        take_profit_price = entry_price * (1 + TAKE_PROFIT_PERCENTAGE / 100)
+
+        if current_price <= stop_loss_price:
+             reason = f"Hard Stop Loss ({STOP_LOSS_PERCENTAGE}%)"
+             # Priority Exit
+             self._create_sell_signal(symbol, current_price, candle_data, reason, open_position['Unique_PositionID'])
+             return
+
+        if current_price >= take_profit_price:
+             reason = f"Hard Take Profit ({TAKE_PROFIT_PERCENTAGE}%)"
+             # Priority Exit
+             self._create_sell_signal(symbol, current_price, candle_data, reason, open_position['Unique_PositionID'])
+             return
 
         # --- Multi-Stage Take-Profit Logic (US 2.10)---
         activated_level = open_position['take_profit_activated'] or 0
