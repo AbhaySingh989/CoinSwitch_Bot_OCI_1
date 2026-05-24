@@ -226,6 +226,27 @@ class DatabaseHandler:
         cursor.execute(f"SELECT * FROM {TABLE_NAME} WHERE symbol = ? ORDER BY candle_start_time ASC", (symbol,))
         return cursor.fetchall()
 
+    def get_last_n_candles(self, symbol, n=300):
+        """Retrieves the last n finalized candles for a symbol, ordered chronologically (oldest to newest)."""
+        self.conn.row_factory = sqlite3.Row
+        query = f"""
+        SELECT * FROM {TABLE_NAME}
+        WHERE symbol = ? AND is_final_candle = 1
+        ORDER BY candle_start_time DESC
+        LIMIT ?;
+        """
+        try:
+            cursor = self.conn.cursor()
+            cursor.execute(query, (symbol, n))
+            rows = cursor.fetchall()
+            # Convert sqlite3.Row to dict and reverse to make it chronological
+            candles = [dict(row) for row in rows]
+            candles.reverse()
+            return candles
+        except sqlite3.Error as e:
+            logger.error(f"Failed to retrieve last {n} closed candles for {symbol}: {e}")
+            return []
+
     def close(self):
         if self.conn:
             self.conn.close()

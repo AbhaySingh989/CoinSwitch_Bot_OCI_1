@@ -3,7 +3,13 @@ import logging
 import uuid
 import time
 from collections import defaultdict
-from config import STALENESS_THRESHOLD_SECONDS, TRAILING_STOP_LOSS_PERCENTAGE, TAKE_PROFIT_STAGES, STOP_LOSS_PERCENTAGE, TAKE_PROFIT_PERCENTAGE, INTRA_CANDLE_BUY_THRESHOLD
+from config import (
+    STALENESS_THRESHOLD_SECONDS,
+    RR_v8_SL_PERCENTAGE,
+    RR_v8_TP_PERCENTAGE,
+    BR_v24_RBR_v26_SL_PERCENTAGE,
+    BR_v24_RBR_v26_TP_PERCENTAGE
+)
 from order_executor import execute_buy_signal, execute_sell_signal
 
 
@@ -14,6 +20,56 @@ class SignalGenerator:
         self.db_handler = db_handler
         self.api_client = api_client
         self._locks = defaultdict(asyncio.Lock)
+
+    def _calculate_indicators(self, symbol):
+        """
+        Fetches closed candles from SQLite database and calculates mathematical indicators 
+        for RR_v8, BR_v24, and RBR_v26 strategies in pure vectorized Pandas.
+        Returns a DataFrame, or None if history is insufficient.
+        """
+        import pandas as pd
+        import numpy as np
+
+        # Fetch last 300 closed candles to ensure stable EMA 200 calculations
+        raw_candles = self.db_handler.get_last_n_candles(symbol, 300)
+        if not raw_candles or len(raw_candles) < 200:
+            logger.debug(f"Insufficient candle history for {symbol} to calculate indicators (Need >= 200, got {len(raw_candles) if raw_candles else 0})")
+            return None
+
+        df = pd.DataFrame(raw_candles)
+
+        # Standardize and cast fields to floats for vector math
+        df['close'] = df['close_price'].astype(float)
+        df['high'] = df['high_price'].astype(float)
+        df['low'] = df['low_price'].astype(float)
+        df['volume'] = df['volume'].astype(float)
+
+        # 1. Exponential Moving Averages (EMAs)
+        df['EMA_20'] = df['close'].ewm(span=20, adjust=False).mean()
+        df['EMA_200'] = df['close'].ewm(span=200, adjust=False).mean()
+
+        # 2. Relative Strength Index (RSI 14) with Wilder's smoothing
+        delta = df['close'].diff()
+        gain = delta.clip(lower=0)
+        loss = -delta.clip(upper=0)
+        avg_gain = gain.ewm(alpha=1/14, adjust=False).mean()
+        avg_loss = loss.ewm(alpha=1/14, adjust=False).mean()
+        rs = avg_gain / avg_loss
+        df['RSI_14'] = 100 - (100 / (1 + rs))
+
+        # 3. Volume Metrics (50-period Median and 20-period SMA)
+        df['Vol_Median_50'] = df['volume'].rolling(window=50).median()
+        df['Vol_SMA_20'] = df['volume'].rolling(window=20).mean()
+
+        # 4. Average True Range (ATR 14) and 50-period ATR SMA
+        high_low = df['high'] - df['low']
+        high_close = (df['high'] - df['close'].shift()).abs()
+        low_close = (df['low'] - df['close'].shift()).abs()
+        true_range = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
+        df['ATR_14'] = true_range.ewm(alpha=1/14, adjust=False).mean()
+        df['ATR_SMA_50'] = df['ATR_14'].rolling(window=50).mean()
+
+        return df
 
     async def process_candle_data(self, candle_data):
         symbol = candle_data.get('s')
@@ -68,26 +124,13 @@ class SignalGenerator:
 
     def _check_buy_signal(self, candle_data):
         symbol = candle_data.get('s')
-        current_price = float(candle_data.get('c'))
-        open_price = float(candle_data.get('o'))
-        candle_timestamp = candle_data.get('t') or candle_data.get('candle_start_time')
 
-        # Intra-candle buy signal (US2.7)
-        if open_price != 0:
-            percentage_increase = ((current_price - open_price) / open_price) * 100
-            increase_threshold = INTRA_CANDLE_BUY_THRESHOLD
-            if percentage_increase >= increase_threshold:
-                # First check the condition, THEN check the database to prevent loops.
-                reason = f'Intra-candle {increase_threshold}% increase'
-                if not self.db_handler.has_signal_with_reason_for_candle(symbol, candle_timestamp, reason):
-                    self._create_buy_signal(symbol, current_price, candle_data, reason)
-
-        # Closed-candle buy signal (US2.4) with staleness check
+        # Closed-candle buy signal evaluation with staleness check
         last_candle = self.db_handler.get_last_closed_candle(symbol)
         if not last_candle:
             return
 
-        # Staleness Check
+        # 1. Staleness Check: Prevent acting on ancient candles after restart or downtime
         candle_timestamp_ms = last_candle.get('candle_start_time')
         if candle_timestamp_ms:
             current_timestamp_s = time.time()
@@ -98,90 +141,93 @@ class SignalGenerator:
                 logger.warning(f"Skipping buy signal check for {symbol}. Last closed candle is {candle_age_s:.0f}s old (threshold: {STALENESS_THRESHOLD_SECONDS}s).")
                 return
 
-        close_open_percentage = self._calculate_close_open_percentage(last_candle['open_price'], last_candle['close_price'])
-        high_close_percentage = self._calculate_high_close_percentage(last_candle['high_price'], last_candle['close_price'])
+        # 2. Get historical sliding window and calculate indicators
+        df = self._calculate_indicators(symbol)
+        if df is None or len(df) == 0:
+            return
 
-        close_open_threshold = 35 #3.5
-        high_close_threshold = 0.05 #0.75
-        if close_open_percentage >= close_open_threshold and high_close_percentage <= high_close_threshold: #close_open_percentage >= 4.0 and high_close_percentage <= 1.0:
-            # First check the conditions, THEN check the database to prevent loops.
-            reason = f'Bullish Momentum ({close_open_threshold}%, {high_close_threshold}%)'
-            if not self.db_handler.has_signal_with_reason_for_candle(symbol, last_candle['candle_start_time'], reason):
-                self._create_buy_signal(symbol, last_candle['close_price'], last_candle, reason)
+        # Extract the indicators computed for the last closed candle
+        last_row = df.iloc[-1]
+
+        # Safety Check: Verify index alignment
+        if int(last_row['candle_start_time']) != int(candle_timestamp_ms):
+            logger.warning(f"Index mismatch between db query timestamp ({candle_timestamp_ms}) and pandas df ({last_row['candle_start_time']}) for {symbol}")
+            return
+
+        # 3. Strategy Conditions Check (Evaluated in concurrent parallel)
+
+        # A. RR_v8 Strategy (Regime Reversion Bearish Capitulation)
+        cond_rr_regime = last_row['close'] < (last_row['EMA_200'] * 0.995)
+        cond_rr_momentum = last_row['RSI_14'] < 30
+        cond_rr_volume = last_row['volume'] > (last_row['Vol_SMA_20'] * 1.2)
+
+        if cond_rr_regime and cond_rr_momentum and cond_rr_volume:
+            reason = "RR_v8_Buy"
+            if not self.db_handler.has_signal_with_reason_for_candle(symbol, candle_timestamp_ms, reason):
+                self._create_buy_signal(symbol, float(last_row['close']), last_candle, reason)
+                return  # Fire at most one buy signal per closed candle
+
+        # B. RBR_v26 Strategy (Refined Reversal Pullback - High Conviction)
+        ema_dist_20 = (last_row['close'] - last_row['EMA_20']) / last_row['EMA_20']
+        cond_rbr_regime = last_row['close'] > last_row['EMA_200']
+        cond_rbr_pullback = ema_dist_20 < -0.003
+        cond_rbr_momentum = last_row['RSI_14'] < 38
+        cond_rbr_volume = last_row['volume'] > (last_row['Vol_Median_50'] * 1.5)
+        cond_rbr_volatility = last_row['ATR_14'] < (last_row['ATR_SMA_50'] * 1.2)
+
+        if cond_rbr_regime and cond_rbr_pullback and cond_rbr_momentum and cond_rbr_volume and cond_rbr_volatility:
+            reason = "RBR_v26_Buy"
+            if not self.db_handler.has_signal_with_reason_for_candle(symbol, candle_timestamp_ms, reason):
+                self._create_buy_signal(symbol, float(last_row['close']), last_candle, reason)
+                return
+
+        # C. BR_v24 Strategy (Balanced Reversal Pullback - Standard)
+        cond_br_regime = last_row['close'] > last_row['EMA_200']
+        cond_br_pullback = ema_dist_20 < -0.003
+        cond_br_momentum = last_row['RSI_14'] < 40
+        cond_br_volume = last_row['volume'] > (last_row['Vol_Median_50'] * 1.5)
+
+        if cond_br_regime and cond_br_pullback and cond_br_momentum and cond_br_volume:
+            reason = "BR_v24_Buy"
+            if not self.db_handler.has_signal_with_reason_for_candle(symbol, candle_timestamp_ms, reason):
+                self._create_buy_signal(symbol, float(last_row['close']), last_candle, reason)
+                return
 
     def _check_sell_signal(self, candle_data, open_position):
         symbol = candle_data.get('s')
         current_price = float(candle_data.get('c'))
         entry_price = open_position['Signal_Price']
-        signal_id = open_position['Signal_ID']
         reason = None
 
-        # Always update the High Water Mark first
-        high_water_mark = open_position['High_Water_Mark'] or entry_price
-        if current_price > high_water_mark:
-            self.db_handler.update_high_water_mark(signal_id, current_price)
-            high_water_mark = current_price  # Use the new HWM for the current check
+        # Determine the triggering strategy from Signal_Reason
+        strategy_reason = open_position['Signal_Reason']
 
-        # --- Hard Stop Loss & Take Profit Checks (Golden Strategy) ---
-        stop_loss_price = entry_price * (1 - STOP_LOSS_PERCENTAGE / 100)
-        take_profit_price = entry_price * (1 + TAKE_PROFIT_PERCENTAGE / 100)
+        # Dynamically assign Stop Loss and Take Profit levels
+        if strategy_reason == 'RR_v8_Buy':
+            sl_pct = RR_v8_SL_PERCENTAGE
+            tp_pct = RR_v8_TP_PERCENTAGE
+        elif strategy_reason in ['BR_v24_Buy', 'RBR_v26_Buy']:
+            sl_pct = BR_v24_RBR_v26_SL_PERCENTAGE
+            tp_pct = BR_v24_RBR_v26_TP_PERCENTAGE
+        else:
+            # Safe Fallback
+            sl_pct = BR_v24_RBR_v26_SL_PERCENTAGE
+            tp_pct = BR_v24_RBR_v26_TP_PERCENTAGE
 
+        # Calculate exact target prices
+        stop_loss_price = entry_price * (1 - sl_pct / 100)
+        take_profit_price = entry_price * (1 + tp_pct / 100)
+
+        # Trigger exit instantly when limit is crossed
         if current_price <= stop_loss_price:
-             reason = f"Hard Stop Loss ({STOP_LOSS_PERCENTAGE}%)"
-             # Priority Exit
-             self._create_sell_signal(symbol, current_price, candle_data, reason, open_position['Unique_PositionID'])
-             return
+            reason = f"Hard Stop Loss ({sl_pct}%)"
+            self._create_sell_signal(symbol, current_price, candle_data, reason, open_position['Unique_PositionID'])
+            return
 
         if current_price >= take_profit_price:
-             reason = f"Hard Take Profit ({TAKE_PROFIT_PERCENTAGE}%)"
-             # Priority Exit
-             self._create_sell_signal(symbol, current_price, candle_data, reason, open_position['Unique_PositionID'])
-             return
-
-        # --- Multi-Stage Take-Profit Logic (US 2.10)---
-        activated_level = open_position['take_profit_activated'] or 0
-
-        # 1. Check for activation of the next profit stage
-        for stage_profit_perc, _ in TAKE_PROFIT_STAGES:
-            if stage_profit_perc > activated_level:
-                activation_price = entry_price * (1 + stage_profit_perc / 100)
-                if current_price >= activation_price:
-                    self.db_handler.update_take_profit_level(signal_id, stage_profit_perc)
-                    activated_level = stage_profit_perc # Update state for the current tick
-                    logging.info(f"Activated {stage_profit_perc}% profit stage for Signal_ID {signal_id}.")
-        
-        # 2. Determine the current trailing stop percentage
-        current_trail_perc = 0
-        if activated_level == 0:
-            # Stage 0: No profit stage activated, use the initial wide stop-loss
-            current_trail_perc = TRAILING_STOP_LOSS_PERCENTAGE
-            reason_template = f"Trailing Stop-Loss ({current_trail_perc}%)"
-        else:
-            # Stage N: A profit stage is active, find the corresponding trail
-            for stage_profit_perc, stage_trail_perc in TAKE_PROFIT_STAGES:
-                if stage_profit_perc == activated_level:
-                    current_trail_perc = stage_trail_perc
-                    break
-            reason_template = f"Profit Trail Stop ({activated_level}% activation -> {current_trail_perc}% trail)"
-
-        # 3. Apply the exit logic
-        if current_trail_perc > 0:
-            trailing_stop_price = high_water_mark * (1 - current_trail_perc / 100)
-            if current_price <= trailing_stop_price:
-                reason = reason_template
-
-        if reason:
+            reason = f"Hard Take Profit ({tp_pct}%)"
             self._create_sell_signal(symbol, current_price, candle_data, reason, open_position['Unique_PositionID'])
-
-    def _calculate_close_open_percentage(self, open_price, close_price):
-        if open_price == 0:
-            return 0
-        return ((close_price - open_price) / open_price) * 100
-
-    def _calculate_high_close_percentage(self, high_price, close_price):
-        if high_price == 0:
-            return 0
-        return ((high_price - close_price) / high_price) * 100
+            return
 
     def _create_buy_signal(self, symbol, price, candle_data, reason):
         # Handle timestamp fields from either live data ('ts') or database ('server_timestamp')
